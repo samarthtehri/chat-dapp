@@ -1,8 +1,8 @@
 <script>
     import Login from './Login.svelte';
     import ChatMessage from './ChatMessage.svelte';
-    import {username,user} from './User';
     import {onMount} from 'svelte';
+    import {username,user} from './user';
     import debounce from 'lodash.debounce';
 
     import GUN from 'gun';
