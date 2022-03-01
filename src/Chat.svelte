@@ -3,6 +3,7 @@
     import ChatMessage from './ChatMessage.svelte';
     import {username,user} from './User';
     import {onMount} from 'svelte';
+    import debounce from 'lodash.debounce';
 
     import GUN from 'gun';
     const db = GUN();
@@ -10,11 +11,36 @@
     let newMessage;
     let messages = [];
 
+    let scrollBottom;
+    let lastScrollTop;
+    let canAutoScroll = true;
+    let unreadMessages = false;
+
+    function autoScroll() {
+        setTimeout(() => scrollBottom?.scrollIntoView({behavior:'auto'}), 50);
+        unreadMessages = false;
+    }
+
+    function watchScroll(e) {
+        canAutoScroll = (e.target.scrollTop || Infinity) > lastScrollTop;
+        lastScrollTop = e.target.scrollTop;
+    }
+    $: debouncedWatchScroll = debounce(watchScroll, 1000);
+
     onMount(() => {
+        // inspired and imported from fireship-io github
+        var match = {
+            // lexical queries are kind of like a limited RegEx or Glob.
+            '.': {
+                // property selector
+                '>': new Date(+new Date() - 1 * 1000 * 60 * 60 * 3).toISOString(), // find any indexed property larger ~3 hours ago
+            },
+            '-': 1, // filter in reverse
+        };
 
         // Get Messages
         db.get('chat')
-            .map()
+            .map(match)
             .once(async (data,id) => {
                 if (data) {
                     //Key for E2E encryption
@@ -28,7 +54,12 @@
                     };
 
                     if (message.what) {
-                        messages = [...messages.slice(-100),message]
+                        messages = [...messages.slice(-100),message].sort((a,b) => a.when - b.when);
+                        if (canAutoScroll) {
+                            autoScroll();
+                        } else {
+                            unreadMessages = true;
+                        }
                     }
                 }
             });
@@ -40,19 +71,37 @@
         const index = new Date().toISOString();
         db.get('chat').get(index).put(message);
         newMessage = '';
+        canAutoScroll = true;
+        autoScroll();
     }
 
 </script>
 
 <div class="container">
     {#if $username}
-    <main>
+    <main on:scroll={debouncedWatchScroll}>
         {#each messages as message (message.when)}
             <ChatMessage {message} sender={$username} />
         {/each}
 
     </main>
-    <form on:submit|preventDefault={sendMessage}></form>
+
+    <form on:submit|preventDefault={sendMessage}>
+        <input type="text" placeholder="Type a message..." bind:value={newMessage} maxlength="100"/>
+        <button type="submit" disabled={!newMessage}>💥</button>
+    </form>
+
+    {#if !canAutoScroll}
+    <div class="scroll-button">
+      <button on:click={autoScroll} class:red={unreadMessages}>
+        {#if unreadMessages}
+          💬
+        {/if}
+        👇
+      </button>
+    </div>
+   {/if}
+
     {:else}
     <main>
         <Login />
