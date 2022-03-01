@@ -84,6 +84,9 @@
             <ChatMessage {message} sender={$username} />
         {/each}
 
+        
+        <div class="placeholder" bind:this={scrollBottom} />
+
     </main>
 
     <form on:submit|preventDefault={sendMessage}>
